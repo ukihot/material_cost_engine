@@ -1,0 +1,9 @@
+[package]
+name = "material_cost_engine"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+calamine = "0.33.0"
+color-eyre = "0.6.5"
+rust_xlsxwriter = "0.93.0"
