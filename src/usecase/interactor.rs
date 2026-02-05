@@ -1,56 +1,69 @@
 use super::dtos::*;
 use super::ports::*;
-use crate::domain::entities::*;
 use crate::domain::repositories::*;
 use crate::domain::services::*;
-use crate::domain::value_objects::*;
 use color_eyre::Result;
 
 /// 材料費計算インタラクタ
-pub struct CalculateMaterialCostInteractor<'a, F, P, O>
+pub struct CalculateMaterialCostInteractor<'a, F, P, FR, R, O>
 where
     F: FormulaRepository,
     P: PurchaseRepository,
+    FR: FreightMasterRepository,
+    R: ProductionRepository,
     O: CalculateMaterialCostOutputPort,
 {
     formula_repo: &'a F,
     purchase_repo: &'a P,
+    freight_repo: &'a FR,
+    production_repo: &'a R,
     output_port: &'a mut O,
 }
 
-impl<'a, F, P, O> CalculateMaterialCostInteractor<'a, F, P, O>
+impl<'a, F, P, FR, R, O> CalculateMaterialCostInteractor<'a, F, P, FR, R, O>
 where
     F: FormulaRepository,
     P: PurchaseRepository,
+    FR: FreightMasterRepository,
+    R: ProductionRepository,
     O: CalculateMaterialCostOutputPort,
 {
-    pub fn new(formula_repo: &'a F, purchase_repo: &'a P, output_port: &'a mut O) -> Self {
+    pub fn new(
+        formula_repo: &'a F,
+        purchase_repo: &'a P,
+        freight_repo: &'a FR,
+        production_repo: &'a R,
+        output_port: &'a mut O,
+    ) -> Self {
         Self {
             formula_repo,
             purchase_repo,
+            freight_repo,
+            production_repo,
             output_port,
         }
     }
-
-    fn validate_production_dto(&self, dto: &ProductionDto) -> Result<Production> {
-        Ok(Production::new(
-            ProductCode::new(dto.product_code.clone())?,
-            dto.production_number.clone(),
-            Quantity::new(dto.quantity)?,
-            YieldRate::new(dto.yield_rate)?,
-            Amount::new(dto.coagulant_cost)?,
-            Amount::new(dto.clay_treatment_cost)?,
-        ))
-    }
 }
 
-impl<'a, F, P, O> CalculateMaterialCostInputPort for CalculateMaterialCostInteractor<'a, F, P, O>
+impl<'a, F, P, FR, R, O> CalculateMaterialCostInputPort
+    for CalculateMaterialCostInteractor<'a, F, P, FR, R, O>
 where
     F: FormulaRepository,
     P: PurchaseRepository,
+    FR: FreightMasterRepository,
+    R: ProductionRepository,
     O: CalculateMaterialCostOutputPort,
 {
-    fn execute(&mut self, productions: Vec<ProductionDto>) -> Result<()> {
+    fn execute(&mut self) -> Result<()> {
+        // リポジトリから生産データを取得
+        let productions = match self.production_repo.find_all() {
+            Ok(p) => p,
+            Err(e) => {
+                self.output_port.present_error(&format!("{:?}", e));
+                return Err(e);
+            }
+        };
+
         // データがない場合
         if productions.is_empty() {
             self.output_port.present_no_data();
@@ -60,19 +73,25 @@ where
         self.output_port
             .present_calculation_start(productions.len());
 
-        for production_dto in productions {
-            self.output_port
-                .present_processing_row(production_dto.row_number, &production_dto.product_code);
-
-            // バリデーション
-            let production = self.validate_production_dto(&production_dto)?;
+        for (idx, production) in productions.iter().enumerate() {
+            self.output_port.present_processing_row(
+                idx + 2, // ヘッダー行を考慮して+2
+                production.product_code.value(),
+            );
 
             // 材料消費を計算
-            let consumptions = MaterialCostCalculationService::calculate_material_consumption(
-                &production,
+            let consumptions = match MaterialCostCalculationService::calculate_material_consumption(
+                production,
                 self.formula_repo,
                 self.purchase_repo,
-            )?;
+                self.freight_repo,
+            ) {
+                Ok(c) => c,
+                Err(e) => {
+                    self.output_port.present_error(&format!("{:?}", e));
+                    return Err(e);
+                }
+            };
 
             // DTOに変換
             let consumption_dtos: Vec<MaterialConsumptionDto> = consumptions
@@ -101,18 +120,18 @@ where
                 &yield_cost,
                 &production.coagulant_cost,
                 &production.clay_treatment_cost,
+                &production.freight_cost,
             );
 
             // 結果をDTOに変換
             let result = MaterialCostResultDto {
-                row_number: production_dto.row_number,
-                product_code: production.product_code.value().to_string(),
-                material_consumptions: consumption_dtos,
+                row_number: idx + 2, // ヘッダー行を考慮して+2
                 raw_material_cost: raw_material_cost.value(),
                 unit_cost: unit_cost.value(),
                 yield_cost: yield_cost.value(),
                 coagulant_cost: production.coagulant_cost.value(),
                 clay_treatment_cost: production.clay_treatment_cost.value(),
+                freight_cost: production.freight_cost.value(),
                 total_material_cost: total_material_cost.value(),
             };
 
@@ -120,6 +139,78 @@ where
         }
 
         self.output_port.present_completion();
+        Ok(())
+    }
+}
+
+/// 入出庫履歴作成インタラクタ
+pub struct CreateInventoryHistoryInteractor<'a, R, O>
+where
+    R: InventoryTransactionRepository,
+    O: CreateInventoryHistoryOutputPort,
+{
+    transaction_repo: &'a R,
+    output_port: &'a mut O,
+}
+
+impl<'a, R, O> CreateInventoryHistoryInteractor<'a, R, O>
+where
+    R: InventoryTransactionRepository,
+    O: CreateInventoryHistoryOutputPort,
+{
+    pub fn new(transaction_repo: &'a R, output_port: &'a mut O) -> Self {
+        Self {
+            transaction_repo,
+            output_port,
+        }
+    }
+}
+
+impl<'a, R, O> CreateInventoryHistoryInputPort for CreateInventoryHistoryInteractor<'a, R, O>
+where
+    R: InventoryTransactionRepository,
+    O: CreateInventoryHistoryOutputPort,
+{
+    fn execute(&mut self) -> Result<()> {
+        self.output_port.present_history_start();
+
+        // 全トランザクションを取得
+        let transactions = match self.transaction_repo.find_all_transactions() {
+            Ok(t) => t,
+            Err(e) => {
+                self.output_port.present_history_error(&format!("{:?}", e));
+                return Err(e);
+            }
+        };
+
+        // 入出庫履歴を作成
+        let records = match InventoryHistoryService::create_history(transactions) {
+            Ok(r) => r,
+            Err(e) => {
+                self.output_port.present_history_error(&format!("{:?}", e));
+                return Err(e);
+            }
+        };
+
+        // 各レコードを出力
+        for record in &records {
+            let dto = InventoryHistoryRecordDto {
+                date: record.date.value().to_string(),
+                inventory_type: record.inventory_type.as_str().to_string(),
+                product_code: record.product_code.value().to_string(),
+                product_name: record.product_name.clone(),
+                base_quantity: record.base_quantity.value(),
+                change_quantity: record.change_quantity.value(),
+                balance: record.balance.value(),
+            };
+            self.output_port.present_history_record(&dto);
+        }
+
+        self.output_port.present_history_completion(records.len());
+
+        // インタラクタがアウトプットポートを終了
+        self.output_port.finalize()?;
+
         Ok(())
     }
 }

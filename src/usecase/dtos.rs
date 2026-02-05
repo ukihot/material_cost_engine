@@ -1,17 +1,3 @@
-use crate::domain::sheet_schema::ProductionSheetSchema;
-
-/// 生産データDTO
-#[derive(Debug, Clone)]
-pub struct ProductionDto {
-    pub row_number: usize,
-    pub product_code: String,
-    pub production_number: String,
-    pub quantity: f64,
-    pub yield_rate: f64,
-    pub coagulant_cost: f64,
-    pub clay_treatment_cost: f64,
-}
-
 /// 材料消費結果DTO
 #[derive(Debug, Clone)]
 pub struct MaterialConsumptionDto {
@@ -26,20 +12,23 @@ pub struct MaterialConsumptionDto {
 #[derive(Debug, Clone)]
 pub struct MaterialCostResultDto {
     pub row_number: usize,
-    pub product_code: String,
-    pub material_consumptions: Vec<MaterialConsumptionDto>,
     pub raw_material_cost: f64,
     pub unit_cost: f64,
     pub yield_cost: f64,
     pub coagulant_cost: f64,
     pub clay_treatment_cost: f64,
+    pub freight_cost: f64,
     pub total_material_cost: f64,
 }
 
-/// プレゼンター初期化用DTO
+/// 入出庫履歴レコードDTO
 #[derive(Debug, Clone)]
-pub struct PresenterConfigDto {
-    pub input_file_path: String,
-    pub output_file_path: String,
-    pub production_sheet_schema: ProductionSheetSchema,
+pub struct InventoryHistoryRecordDto {
+    pub date: String,
+    pub inventory_type: String,
+    pub product_code: String,
+    pub product_name: String,
+    pub base_quantity: f64,
+    pub change_quantity: f64,
+    pub balance: f64,
 }

@@ -5,5 +5,8 @@ edition = "2024"
 
 [dependencies]
 calamine = "0.33.0"
+chrono = "0.4"
 color-eyre = "0.6.5"
 rust_xlsxwriter = "0.93.0"
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.9.11+spec-1.1.0"

@@ -1,0 +1,3 @@
+[paths]
+input_file = "tests/直接材料費原価計算表.xlsx"
+output_file = "tests/直接材料費原価計算表_結果.xlsx"

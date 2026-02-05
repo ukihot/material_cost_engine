@@ -1,96 +1,88 @@
 mod adapter;
+mod config;
 mod domain;
+mod infrastructure;
 mod usecase;
 
 use adapter::controller::ExcelController;
 use adapter::presenter::ExcelPresenter;
-use adapter::repositories::{ExcelFormulaRepository, ExcelPurchaseRepository};
-use calamine::{Reader, Xlsx, open_workbook};
 use color_eyre::Result;
+use config::Config;
+use infrastructure::excel_repositories::ExcelRepositoryFactory;
 use std::io::{self, Write};
 
-fn main() -> Result<()> {
-    color_eyre::install()?;
-
-    let input_path = "tests/直接材料費原価計算表.xlsx";
-    let output_path = "tests/直接材料費原価計算表_結果.xlsx";
-
-    // Excelファイルを読み取る
-    println!("Excelファイルを読み取り中: {}", input_path);
-    let mut workbook = match open_workbook::<Xlsx<_>, _>(input_path) {
-        Ok(wb) => wb,
-        Err(e) => {
-            eprintln!("\nエラー: 入力ファイルを開けませんでした");
-            eprintln!("ファイル: {}", input_path);
-            eprintln!("原因: {}", e);
-            eprintln!("\n対処方法:");
-            eprintln!("  - ファイルがExcelなどで開かれている場合は閉じてください");
-            eprintln!("  - ファイルパスが正しいか確認してください");
-            wait_for_enter()?;
-            return Ok(());
-        }
-    };
-
-    // シート名を表示
-    let sheet_names = workbook.sheet_names().to_owned();
-    println!("\n既存のシート構成:");
-    for (i, name) in sheet_names.iter().enumerate() {
-        println!("  {}. {}", i + 1, name);
+fn main() {
+    // エラーハンドリングを初期化
+    if let Err(e) = color_eyre::install() {
+        eprintln!("エラーハンドリングの初期化に失敗: {}", e);
     }
 
-    // リポジトリを初期化
-    println!("\nリポジトリを初期化中...");
-    let formula_repo = match ExcelFormulaRepository::new(&mut workbook) {
-        Ok(repo) => repo,
+    // エラーが発生しても必ず入力待ちをする
+    if let Err(e) = run() {
+        eprintln!("\n❌ エラーが発生しました:");
+        eprintln!("{:?}", e);
+    }
+
+    // 結果に関わらず入力待ち
+    let _ = wait_for_enter();
+}
+
+fn run() -> Result<()> {
+    // 設定を読み込む
+    let config = match Config::load() {
+        Ok(c) => c,
         Err(e) => {
-            eprintln!("\n❌ 配合マスタの読み込みエラー:");
-            eprintln!("{:?}", e);
-            wait_for_enter()?;
-            return Ok(());
+            eprintln!("\n❌ 設定ファイルの読み込みエラー");
+            eprintln!("{}", e);
+            eprintln!("\n対処方法:");
+            eprintln!("  1. 実行ファイル(.exe)と同じフォルダに config.toml を配置してください");
+            eprintln!("  2. config.toml の内容例:");
+            eprintln!("     [paths]");
+            eprintln!("     input_file = \"tests/直接材料費原価計算表.xlsx\"");
+            eprintln!("     output_file = \"tests/直接材料費原価計算表_結果.xlsx\"");
+            return Err(e);
         }
     };
 
-    let purchase_repo = match ExcelPurchaseRepository::new(&mut workbook) {
-        Ok(repo) => repo,
-        Err(e) => {
-            eprintln!("\n❌ 仕入データの読み込みエラー:");
-            eprintln!("{:?}", e);
-            wait_for_enter()?;
-            return Ok(());
-        }
-    };
+    let input_path = &config.paths.input_file;
+    let output_path = &config.paths.output_file;
 
-    println!("  ✓ リポジトリの初期化完了");
+    // Excelファイルを読み取り、リポジトリを初期化
+    let factory = ExcelRepositoryFactory::from_file(input_path)?;
 
-    // プレゼンター、コントローラを組み立てる
-    let presenter = ExcelPresenter::new();
+    // プレゼンターを初期化
+    let mut presenter = ExcelPresenter::new(input_path.clone(), output_path.clone())?;
+
+    // コントローラを組み立てる
     let mut controller = ExcelController::new(
-        &formula_repo,
-        &purchase_repo,
-        presenter,
-        input_path.to_string(),
-        output_path.to_string(),
+        &factory.formula_repo,
+        &factory.purchase_repo,
+        &factory.freight_repo,
+        &factory.production_repo,
+        &factory.transaction_repo,
+        &mut presenter,
     );
 
-    // コントローラを実行
-    if let Err(e) = controller.execute(&mut workbook) {
-        eprintln!("\n❌ 材料費計算エラー:");
-        eprintln!("{:?}", e);
+    // ユースケース1: 材料費計算
+    controller.execute_material_cost_calculation()?;
 
-        wait_for_enter()?;
-        return Ok(());
-    }
+    // ユースケース2: 入出庫履歴作成
+    controller.execute_inventory_history_creation()?;
 
-    // 終了前に入力待ち
-    wait_for_enter()?;
+    // 結果を保存
+    presenter.finalize()?;
 
     Ok(())
 }
 
 fn wait_for_enter() -> Result<()> {
     println!("\nEnterキーを押して終了...");
-    io::stdout().flush()?;
+    if let Err(e) = io::stdout().flush() {
+        eprintln!("出力のフラッシュに失敗: {}", e);
+    }
     let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
+    if let Err(e) = io::stdin().read_line(&mut input) {
+        eprintln!("入力の読み取りに失敗: {}", e);
+    }
     Ok(())
 }

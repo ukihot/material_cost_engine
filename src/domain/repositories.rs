@@ -16,3 +16,13 @@ pub trait PurchaseRepository {
 pub trait ProductionRepository {
     fn find_all(&self) -> Result<Vec<Production>>;
 }
+
+/// 入出庫トランザクションリポジトリ
+pub trait InventoryTransactionRepository {
+    fn find_all_transactions(&self) -> Result<Vec<InventoryTransaction>>;
+}
+
+/// 運賃マスタリポジトリ
+pub trait FreightMasterRepository {
+    fn find_by_code(&self, freight_code: &str) -> Result<FreightMaster>;
+}
