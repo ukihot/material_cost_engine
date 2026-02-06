@@ -129,7 +129,6 @@ impl ExcelPresenter {
                 let row = (result.row_number - 1) as u32;
                 // 四捨五入して整数に変換
                 sheet.write_number(row, 4, result.raw_material_cost.round())?; // 原砂金額
-                sheet.write_number(row, 5, result.unit_cost.round())?; // 原単位
                 sheet.write_number(row, 7, result.yield_cost.round())?; // 原砂歩留金額
                 sheet.write_number(row, 10, result.freight_cost.round())?; // 運賃
                 sheet.write_number(row, 11, result.total_material_cost.round())?; // 材料費
@@ -224,7 +223,6 @@ impl CalculateMaterialCostOutputPort for ExcelPresenter {
             "    原砂金額合計: {:.2} 円",
             result.raw_material_cost
         ));
-        self.log(format!("    原単位（円/t）: {:.2}", result.unit_cost));
         self.log(format!("    原砂歩留金額: {:.2} 円", result.yield_cost));
         self.log(format!("    凝集剤: {:.2} 円", result.coagulant_cost));
         self.log(format!(

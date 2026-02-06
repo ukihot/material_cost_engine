@@ -116,15 +116,6 @@ where
             // 各種金額を計算
             let raw_material_cost =
                 MaterialCostCalculationService::calculate_raw_material_cost(&result.consumptions);
-
-            // 消費砂量の合計を計算（kg）
-            let total_consumption_kg: f64 =
-                result.consumptions.iter().map(|c| c.quantity.value()).sum();
-
-            let unit_cost = MaterialCostCalculationService::calculate_unit_cost(
-                &raw_material_cost,
-                total_consumption_kg,
-            );
             let yield_cost = MaterialCostCalculationService::calculate_yield_cost(
                 &raw_material_cost,
                 &production.yield_rate,
@@ -140,7 +131,6 @@ where
             let result_dto = MaterialCostResultDto {
                 row_number: idx + 2, // ヘッダー行を考慮して+2
                 raw_material_cost: raw_material_cost.value(),
-                unit_cost: unit_cost.value(),
                 yield_cost: yield_cost.value(),
                 coagulant_cost: production.coagulant_cost.value(),
                 clay_treatment_cost: production.clay_treatment_cost.value(),

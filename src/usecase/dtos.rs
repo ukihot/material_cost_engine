@@ -17,7 +17,6 @@ pub struct MaterialConsumptionDto {
 pub struct MaterialCostResultDto {
     pub row_number: usize,
     pub raw_material_cost: f64,
-    pub unit_cost: f64,
     pub yield_cost: f64,
     pub coagulant_cost: f64,
     pub clay_treatment_cost: f64,
