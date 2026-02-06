@@ -129,9 +129,11 @@ impl ExcelPresenter {
                 let row = (result.row_number - 1) as u32;
                 // 四捨五入して整数に変換
                 sheet.write_number(row, 4, result.raw_material_cost.round())?; // 原砂金額
-                sheet.write_number(row, 7, result.yield_cost.round())?; // 原砂歩留金額
-                sheet.write_number(row, 10, result.freight_cost.round())?; // 運賃
-                sheet.write_number(row, 11, result.total_material_cost.round())?; // 材料費
+                sheet.write_number(row, 6, result.yield_cost.round())?; // 原砂歩留金額
+                sheet.write_number(row, 7, result.coagulant_cost.round())?; // 凝集剤
+                sheet.write_number(row, 8, result.clay_treatment_cost.round())?; // 粘土処理
+                sheet.write_number(row, 9, result.freight_cost.round())?; // 材料運賃
+                sheet.write_number(row, 10, result.total_material_cost.round())?; // 材料費
             }
 
             self.log("  ✓ 材料費計算結果の書き込み完了".to_string());
