@@ -12,6 +12,13 @@ pub struct ExcelPresenter {
     results: Vec<MaterialCostResultDto>,
     history_records: Vec<InventoryHistoryRecordDto>,
     logs: Vec<String>,
+    // 【入庫】生産シートの列インデックス
+    production_col_raw_material_cost: Option<usize>,
+    production_col_yield_cost: Option<usize>,
+    production_col_coagulant_cost: Option<usize>,
+    production_col_clay_treatment_cost: Option<usize>,
+    production_col_freight_cost: Option<usize>,
+    production_col_total_material_cost: Option<usize>,
 }
 
 impl ExcelPresenter {
@@ -23,10 +30,18 @@ impl ExcelPresenter {
             results: Vec::new(),
             history_records: Vec::new(),
             logs: Vec::new(),
+            production_col_raw_material_cost: None,
+            production_col_yield_cost: None,
+            production_col_coagulant_cost: None,
+            production_col_clay_treatment_cost: None,
+            production_col_freight_cost: None,
+            production_col_total_material_cost: None,
         };
 
         // Excelファイルを準備
         presenter.initialize_workbook()?;
+        // 列インデックスを取得
+        presenter.load_column_indices()?;
         Ok(presenter)
     }
 
@@ -103,6 +118,53 @@ impl ExcelPresenter {
         Ok(())
     }
 
+    fn load_column_indices(&mut self) -> Result<()> {
+        // 元のExcelファイルから列インデックスを取得
+        let mut source_workbook: Xlsx<_> = open_workbook(&self.input_file_path)?;
+
+        // 【入庫】生産シートのヘッダー行を読み込む
+        let sheet_name = "【入庫】生産";
+        if let Ok(range) = source_workbook.worksheet_range(sheet_name)
+            && let Some(header_row) = range.rows().next() {
+                // 各列のインデックスを取得
+                self.production_col_raw_material_cost = header_row
+                    .iter()
+                    .position(|cell| cell.to_string().trim() == "原砂金額");
+
+                self.production_col_yield_cost = header_row
+                    .iter()
+                    .position(|cell| cell.to_string().trim() == "原砂歩留金額");
+
+                self.production_col_coagulant_cost = header_row
+                    .iter()
+                    .position(|cell| cell.to_string().trim() == "凝集剤");
+
+                self.production_col_clay_treatment_cost = header_row
+                    .iter()
+                    .position(|cell| cell.to_string().trim() == "粘土処理");
+
+                self.production_col_freight_cost = header_row
+                    .iter()
+                    .position(|cell| cell.to_string().trim() == "材料運賃");
+
+                self.production_col_total_material_cost = header_row
+                    .iter()
+                    .position(|cell| cell.to_string().trim() == "材料費");
+
+                self.log(format!(
+                    "  ✓ 列インデックス取得: 原砂金額={:?}, 原砂歩留金額={:?}, 凝集剤={:?}, 粘土処理={:?}, 材料運賃={:?}, 材料費={:?}",
+                    self.production_col_raw_material_cost,
+                    self.production_col_yield_cost,
+                    self.production_col_coagulant_cost,
+                    self.production_col_clay_treatment_cost,
+                    self.production_col_freight_cost,
+                    self.production_col_total_material_cost
+                ));
+            }
+
+        Ok(())
+    }
+
     fn log(&mut self, message: String) {
         println!("{}", message);
         self.logs.push(message);
@@ -128,12 +190,24 @@ impl ExcelPresenter {
             for result in &self.results {
                 let row = (result.row_number - 1) as u32;
                 // 四捨五入して整数に変換
-                sheet.write_number(row, 4, result.raw_material_cost.round())?; // 原砂金額
-                sheet.write_number(row, 6, result.yield_cost.round())?; // 原砂歩留金額
-                sheet.write_number(row, 7, result.coagulant_cost.round())?; // 凝集剤
-                sheet.write_number(row, 8, result.clay_treatment_cost.round())?; // 粘土処理
-                sheet.write_number(row, 9, result.freight_cost.round())?; // 材料運賃
-                sheet.write_number(row, 10, result.total_material_cost.round())?; // 材料費
+                if let Some(col) = self.production_col_raw_material_cost {
+                    sheet.write_number(row, col as u16, result.raw_material_cost.round())?;
+                }
+                if let Some(col) = self.production_col_yield_cost {
+                    sheet.write_number(row, col as u16, result.yield_cost.round())?;
+                }
+                if let Some(col) = self.production_col_coagulant_cost {
+                    sheet.write_number(row, col as u16, result.coagulant_cost.round())?;
+                }
+                if let Some(col) = self.production_col_clay_treatment_cost {
+                    sheet.write_number(row, col as u16, result.clay_treatment_cost.round())?;
+                }
+                if let Some(col) = self.production_col_freight_cost {
+                    sheet.write_number(row, col as u16, result.freight_cost.round())?;
+                }
+                if let Some(col) = self.production_col_total_material_cost {
+                    sheet.write_number(row, col as u16, result.total_material_cost.round())?;
+                }
             }
 
             self.log("  ✓ 材料費計算結果の書き込み完了".to_string());
