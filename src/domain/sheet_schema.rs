@@ -45,7 +45,7 @@ impl ProductionSheetSchema {
             "歩留率",
             "凝集剤",
             "粘土処理",
-            "運賃",
+            "材料運賃",
         ];
 
         let mut missing = Vec::new();
@@ -69,7 +69,7 @@ impl ProductionSheetSchema {
             col_yield_rate: ColumnIndex::new(*header_map.get("歩留率").unwrap()),
             col_coagulant: ColumnIndex::new(*header_map.get("凝集剤").unwrap()),
             col_clay_treatment: ColumnIndex::new(*header_map.get("粘土処理").unwrap()),
-            col_freight: ColumnIndex::new(*header_map.get("運賃").unwrap()),
+            col_freight: ColumnIndex::new(*header_map.get("材料運賃").unwrap()),
         })
     }
 

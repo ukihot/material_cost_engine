@@ -8,11 +8,17 @@ use color_eyre::{Result, eyre::eyre};
 use std::collections::HashMap;
 
 // 共通ヘルパー関数
-fn find_column_index(header_row: &[Data], column_name: &str) -> Result<usize> {
+fn find_column_index(header_row: &[Data], column_name: &str, sheet_name: &str) -> Result<usize> {
     header_row
         .iter()
         .position(|cell| cell.to_string().trim() == column_name)
-        .ok_or_else(|| eyre!("列 '{}' が見つかりません", column_name))
+        .ok_or_else(|| {
+            eyre!(
+                "{}シート: 列 '{}' が見つかりません",
+                sheet_name,
+                column_name
+            )
+        })
 }
 
 fn get_cell_string(row: &[Data], index: usize) -> String {
@@ -100,9 +106,9 @@ impl ExcelFormulaRepository {
         }
 
         let header_row = rows[0];
-        let col_product_code = find_column_index(header_row, "製造商品コード")?;
-        let col_material_code = find_column_index(header_row, "材料商品コード")?;
-        let col_consumption_ratio = find_column_index(header_row, "消費比率")?;
+        let col_product_code = find_column_index(header_row, "製造商品コード", sheet_name)?;
+        let col_material_code = find_column_index(header_row, "材料商品コード", sheet_name)?;
+        let col_consumption_ratio = find_column_index(header_row, "消費比率", sheet_name)?;
 
         let mut data: HashMap<String, Vec<FormulaEntry>> = HashMap::new();
 
@@ -157,11 +163,11 @@ impl ExcelFreightMasterRepository {
         }
 
         let header_row = rows[0];
-        let col_freight_code = find_column_index(header_row, "運賃コード")?;
-        let col_pattern_name = find_column_index(header_row, "パターン名")?;
-        let col_kg_unit_price = find_column_index(header_row, "Kg単価")?;
-        let col_valid_from = find_column_index(header_row, "有効開始日")?;
-        let col_valid_to = find_column_index(header_row, "有効終了日")?;
+        let col_freight_code = find_column_index(header_row, "運賃コード", sheet_name)?;
+        let col_pattern_name = find_column_index(header_row, "パターン名", sheet_name)?;
+        let col_kg_unit_price = find_column_index(header_row, "Kg単価", sheet_name)?;
+        let col_valid_from = find_column_index(header_row, "有効開始日", sheet_name)?;
+        let col_valid_to = find_column_index(header_row, "有効終了日", sheet_name)?;
 
         let mut data: HashMap<String, FreightMaster> = HashMap::new();
 
