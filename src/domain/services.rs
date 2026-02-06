@@ -105,8 +105,15 @@ impl MaterialCostCalculationService {
     }
 
     /// 原単位を計算（円/t）
-    pub fn calculate_unit_cost(raw_material_cost: &Amount) -> Amount {
-        raw_material_cost.divide_by(1000.0)
+    /// 原単位 = (原砂金額 ÷ 消費砂量) × 1000
+    pub fn calculate_unit_cost(raw_material_cost: &Amount, total_consumption_kg: f64) -> Amount {
+        if total_consumption_kg == 0.0 {
+            return Amount::zero();
+        }
+        // 円/kg の原単位を求める
+        let unit_cost_per_kg = raw_material_cost.value() / total_consumption_kg;
+        // 円/t に変換（1t = 1000kg）
+        Amount::new(unit_cost_per_kg * 1000.0).unwrap_or_else(|_| Amount::zero())
     }
 
     /// 原砂歩留金額を計算
@@ -600,5 +607,51 @@ mod tests {
 
         // 合計運賃
         assert_eq!(result.total_freight_cost.value(), 468.75);
+    }
+
+    #[test]
+    fn test_unit_cost_calculation() {
+        // 原単位（円/t）の計算テスト
+        // 原単位 = (原砂金額 ÷ 消費砂量) × 1000
+        //
+        // ケース1: 原砂金額 5000円, 消費砂量 100kg
+        // 期待される原単位: (5000 ÷ 100) × 1000 = 50,000円/t
+        let raw_material_cost = Amount::new(5000.0).unwrap();
+        let total_consumption_kg = 100.0;
+        let unit_cost = MaterialCostCalculationService::calculate_unit_cost(
+            &raw_material_cost,
+            total_consumption_kg,
+        );
+        assert_eq!(unit_cost.value(), 50000.0);
+
+        // ケース2: 原砂金額 12000円, 消費砂量 80kg
+        // 期待される原単位: (12000 ÷ 80) × 1000 = 150,000円/t
+        let raw_material_cost = Amount::new(12000.0).unwrap();
+        let total_consumption_kg = 80.0;
+        let unit_cost = MaterialCostCalculationService::calculate_unit_cost(
+            &raw_material_cost,
+            total_consumption_kg,
+        );
+        assert_eq!(unit_cost.value(), 150000.0);
+
+        // ケース3: 原砂金額 7500円, 消費砂量 50kg
+        // 期待される原単位: (7500 ÷ 50) × 1000 = 150,000円/t
+        let raw_material_cost = Amount::new(7500.0).unwrap();
+        let total_consumption_kg = 50.0;
+        let unit_cost = MaterialCostCalculationService::calculate_unit_cost(
+            &raw_material_cost,
+            total_consumption_kg,
+        );
+        assert_eq!(unit_cost.value(), 150000.0);
+
+        // ケース4: 消費砂量が0の場合（ゼロ除算対策）
+        // 期待される原単位: 0円/t
+        let raw_material_cost = Amount::new(5000.0).unwrap();
+        let total_consumption_kg = 0.0;
+        let unit_cost = MaterialCostCalculationService::calculate_unit_cost(
+            &raw_material_cost,
+            total_consumption_kg,
+        );
+        assert_eq!(unit_cost.value(), 0.0);
     }
 }

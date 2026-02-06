@@ -33,7 +33,7 @@ mod tests {
     fn test_purchase_with_code() {
         let unit_price = Amount::new(100.0).unwrap();
         let quantity = Quantity::new(50.0).unwrap();
-        let freight_code = FreightCode::new("T0001".to_string()).unwrap();
+        let freight_code = FreightCode::new("T01".to_string()).unwrap();
 
         let purchase = Purchase::new("原材料A".to_string(), unit_price, quantity, freight_code);
 
