@@ -1,9 +1,9 @@
 use color_eyre::{Result, eyre::eyre};
 
-/// 運賃コード（T0001形式）または直接のKg単価（数値）
+/// 運賃コード（T01形式）または直接のKg単価（数値）
 #[derive(Debug, Clone)]
 pub enum FreightCode {
-    Code(String),     // T0001形式のコード
+    Code(String),     // T01形式のコード
     DirectPrice(f64), // 直接指定されたKg単価
 }
 
@@ -23,8 +23,8 @@ impl FreightCode {
             return Ok(FreightCode::DirectPrice(price));
         }
 
-        // T0001形式かチェック
-        if trimmed.starts_with('T') && trimmed.len() == 5 {
+        // T01形式かチェック
+        if trimmed.starts_with('T') && trimmed.len() == 3 {
             let digits = &trimmed[1..];
             if digits.chars().all(|c| c.is_ascii_digit()) {
                 return Ok(FreightCode::Code(trimmed.to_string()));
@@ -32,7 +32,7 @@ impl FreightCode {
         }
 
         Err(eyre!(
-            "運賃コードの形式が不正です: '{}'\n  有効な形式: T0001～T9999 または数値 (例: T0001, 150.5)",
+            "運賃コードの形式が不正です: '{}'\n  有効な形式: T01～T99 または数値 (例: T01, 150.5)",
             trimmed
         ))
     }
@@ -66,9 +66,16 @@ mod tests {
 
     #[test]
     fn test_freight_code_valid_code() {
-        let code = FreightCode::new("T0001".to_string()).unwrap();
+        let code = FreightCode::new("T01".to_string()).unwrap();
         assert!(code.is_code());
-        assert_eq!(code.as_code(), Some("T0001"));
+        assert_eq!(code.as_code(), Some("T01"));
+    }
+
+    #[test]
+    fn test_freight_code_valid_code_two_digits() {
+        let code = FreightCode::new("T99".to_string()).unwrap();
+        assert!(code.is_code());
+        assert_eq!(code.as_code(), Some("T99"));
     }
 
     #[test]
@@ -98,14 +105,20 @@ mod tests {
     }
 
     #[test]
-    fn test_freight_code_invalid_length() {
+    fn test_freight_code_invalid_length_too_short() {
+        let result = FreightCode::new("T1".to_string());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_freight_code_invalid_length_too_long() {
         let result = FreightCode::new("T001".to_string());
         assert!(result.is_err());
     }
 
     #[test]
     fn test_freight_code_invalid_prefix() {
-        let result = FreightCode::new("A0001".to_string());
+        let result = FreightCode::new("A01".to_string());
         assert!(result.is_err());
     }
 
@@ -117,8 +130,8 @@ mod tests {
 
     #[test]
     fn test_freight_code_with_whitespace() {
-        let code = FreightCode::new("  T0001  ".to_string()).unwrap();
+        let code = FreightCode::new("  T01  ".to_string()).unwrap();
         assert!(code.is_code());
-        assert_eq!(code.as_code(), Some("T0001"));
+        assert_eq!(code.as_code(), Some("T01"));
     }
 }

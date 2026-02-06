@@ -19,17 +19,17 @@ impl FreightMaster {
         valid_from: TransactionDate,
         valid_to: Option<TransactionDate>,
     ) -> Result<Self> {
-        // 運賃コードのバリデーション（T0001形式）
-        if !freight_code.starts_with('T') || freight_code.len() != 5 {
+        // 運賃コードのバリデーション（T01形式）
+        if !freight_code.starts_with('T') || freight_code.len() != 3 {
             return Err(eyre!(
-                "運賃コードの形式が不正です: '{}' (T0001～T9999の形式が必要)",
+                "運賃コードの形式が不正です: '{}' (T01～T99の形式が必要)",
                 freight_code
             ));
         }
         let digits = &freight_code[1..];
         if !digits.chars().all(|c| c.is_ascii_digit()) {
             return Err(eyre!(
-                "運賃コードの形式が不正です: '{}' (T0001～T9999の形式が必要)",
+                "運賃コードの形式が不正です: '{}' (T01～T99の形式が必要)",
                 freight_code
             ));
         }
@@ -55,7 +55,7 @@ mod tests {
         let valid_from = TransactionDate::new("2024-01-01".to_string()).unwrap();
 
         let freight_master = FreightMaster::new(
-            "T0001".to_string(),
+            "T01".to_string(),
             pattern_name,
             kg_unit_price,
             valid_from,
@@ -63,7 +63,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(freight_master.freight_code, "T0001");
+        assert_eq!(freight_master.freight_code, "T01");
         assert_eq!(freight_master.kg_unit_price.value(), 150.0);
     }
 
@@ -75,7 +75,7 @@ mod tests {
         let valid_to = TransactionDate::new("2024-12-31".to_string()).unwrap();
 
         let freight_master = FreightMaster::new(
-            "T0002".to_string(),
+            "T02".to_string(),
             pattern_name,
             kg_unit_price,
             valid_from,
@@ -93,7 +93,7 @@ mod tests {
         let valid_from = TransactionDate::new("2024-01-01".to_string()).unwrap();
 
         let result = FreightMaster::new(
-            "A0001".to_string(),
+            "A01".to_string(),
             pattern_name,
             kg_unit_price,
             valid_from,
@@ -110,7 +110,7 @@ mod tests {
         let valid_from = TransactionDate::new("2024-01-01".to_string()).unwrap();
 
         let result = FreightMaster::new(
-            "T001".to_string(),
+            "T1".to_string(),
             pattern_name,
             kg_unit_price,
             valid_from,
@@ -127,7 +127,7 @@ mod tests {
         let valid_from = TransactionDate::new("2024-01-01".to_string()).unwrap();
 
         let result = FreightMaster::new(
-            "T00A1".to_string(),
+            "T0A".to_string(),
             pattern_name,
             kg_unit_price,
             valid_from,

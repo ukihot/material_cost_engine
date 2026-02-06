@@ -8,7 +8,6 @@ pub struct Production {
     pub yield_rate: YieldRate,
     pub coagulant_cost: Amount,
     pub clay_treatment_cost: Amount,
-    pub freight_cost: Amount,
 }
 
 impl Production {
@@ -18,7 +17,6 @@ impl Production {
         yield_rate: YieldRate,
         coagulant_cost: Amount,
         clay_treatment_cost: Amount,
-        freight_cost: Amount,
     ) -> Self {
         Self {
             product_code,
@@ -26,7 +24,6 @@ impl Production {
             yield_rate,
             coagulant_cost,
             clay_treatment_cost,
-            freight_cost,
         }
     }
 }
@@ -42,7 +39,6 @@ mod tests {
         let yield_rate = YieldRate::new(0.95).unwrap();
         let coagulant_cost = Amount::new(100.0).unwrap();
         let clay_treatment_cost = Amount::new(50.0).unwrap();
-        let freight_cost = Amount::new(200.0).unwrap();
 
         let production = Production::new(
             product_code.clone(),
@@ -50,7 +46,6 @@ mod tests {
             yield_rate,
             coagulant_cost,
             clay_treatment_cost,
-            freight_cost,
         );
 
         assert_eq!(production.product_code.value(), "P001");
@@ -58,6 +53,5 @@ mod tests {
         assert_eq!(production.yield_rate.value(), 0.95);
         assert_eq!(production.coagulant_cost.value(), 100.0);
         assert_eq!(production.clay_treatment_cost.value(), 50.0);
-        assert_eq!(production.freight_cost.value(), 200.0);
     }
 }

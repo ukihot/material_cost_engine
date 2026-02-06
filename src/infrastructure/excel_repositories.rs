@@ -497,7 +497,6 @@ impl ExcelProductionRepository {
             let yield_rate_str = get_cell_string(row, schema.yield_rate().value());
             let coagulant_str = get_cell_string(row, schema.coagulant().value());
             let clay_treatment_str = get_cell_string(row, schema.clay_treatment().value());
-            let freight_str = get_cell_string(row, schema.freight().value());
 
             // 必須項目チェック
             if production_date.is_empty()
@@ -571,20 +570,12 @@ impl ExcelProductionRepository {
                 })?
             };
 
-            // 運賃は空白の場合は0、それ以外は数値として読み取る（書き込み用）
-            let freight_cost: f64 = if freight_str.is_empty() {
-                0.0
-            } else {
-                freight_str.parse().unwrap_or(0.0)
-            };
-
             productions.push(Production::new(
                 ProductCode::new(product_code_str)?,
                 Quantity::new(quantity)?,
                 YieldRate::new(yield_rate)?,
                 Amount::new(coagulant_cost)?,
                 Amount::new(clay_treatment_cost)?,
-                Amount::new(freight_cost)?,
             ));
         }
 

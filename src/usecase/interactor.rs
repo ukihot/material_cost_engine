@@ -80,13 +80,13 @@ where
             );
 
             // 材料消費を計算
-            let consumptions = match MaterialCostCalculationService::calculate_material_consumption(
+            let result = match MaterialCostCalculationService::calculate_material_consumption(
                 production,
                 self.formula_repo,
                 self.purchase_repo,
                 self.freight_repo,
             ) {
-                Ok(c) => c,
+                Ok(r) => r,
                 Err(e) => {
                     self.output_port.present_error(&format!("{:?}", e));
                     return Err(e);
@@ -94,7 +94,8 @@ where
             };
 
             // DTOに変換
-            let consumption_dtos: Vec<MaterialConsumptionDto> = consumptions
+            let consumption_dtos: Vec<MaterialConsumptionDto> = result
+                .consumptions
                 .iter()
                 .map(|c| MaterialConsumptionDto {
                     material_code: c.material_code.value().to_string(),
@@ -102,6 +103,10 @@ where
                     quantity: c.quantity.value(),
                     unit_price: c.unit_price.value(),
                     total_cost: c.total_cost.value(),
+                    freight_cost: c.freight_cost.value(),
+                    purchase_quantity: c.purchase_quantity.value(),
+                    freight_code_str: c.freight_code_str.clone(),
+                    freight_kg_price: c.freight_kg_price,
                 })
                 .collect();
 
@@ -110,7 +115,7 @@ where
 
             // 各種金額を計算
             let raw_material_cost =
-                MaterialCostCalculationService::calculate_raw_material_cost(&consumptions);
+                MaterialCostCalculationService::calculate_raw_material_cost(&result.consumptions);
             let unit_cost = MaterialCostCalculationService::calculate_unit_cost(&raw_material_cost);
             let yield_cost = MaterialCostCalculationService::calculate_yield_cost(
                 &raw_material_cost,
@@ -120,22 +125,22 @@ where
                 &yield_cost,
                 &production.coagulant_cost,
                 &production.clay_treatment_cost,
-                &production.freight_cost,
+                &result.total_freight_cost,
             );
 
             // 結果をDTOに変換
-            let result = MaterialCostResultDto {
+            let result_dto = MaterialCostResultDto {
                 row_number: idx + 2, // ヘッダー行を考慮して+2
                 raw_material_cost: raw_material_cost.value(),
                 unit_cost: unit_cost.value(),
                 yield_cost: yield_cost.value(),
                 coagulant_cost: production.coagulant_cost.value(),
                 clay_treatment_cost: production.clay_treatment_cost.value(),
-                freight_cost: production.freight_cost.value(),
+                freight_cost: result.total_freight_cost.value(),
                 total_material_cost: total_material_cost.value(),
             };
 
-            self.output_port.present_calculation_result(&result);
+            self.output_port.present_calculation_result(&result_dto);
         }
 
         self.output_port.present_completion();

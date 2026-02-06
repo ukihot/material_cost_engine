@@ -37,6 +37,9 @@ impl ExcelPresenter {
         let mut source_workbook: Xlsx<_> = open_workbook(&self.input_file_path)?;
         let mut new_workbook = Workbook::new();
 
+        // 日付フォーマットを作成
+        let date_format = rust_xlsxwriter::Format::new().set_num_format("yyyy-mm-dd");
+
         // すべてのシートをコピー
         let sheet_names = source_workbook.sheet_names().to_owned();
         for sheet_name in &sheet_names {
@@ -47,9 +50,48 @@ impl ExcelPresenter {
                 // データをコピー
                 for (row_idx, row) in range.rows().enumerate() {
                     for (col_idx, cell) in row.iter().enumerate() {
-                        let value = format!("{}", cell);
-                        if !value.is_empty() {
-                            worksheet.write_string(row_idx as u32, col_idx as u16, &value)?;
+                        match cell {
+                            calamine::Data::Int(i) => {
+                                worksheet.write_number(
+                                    row_idx as u32,
+                                    col_idx as u16,
+                                    *i as f64,
+                                )?;
+                            }
+                            calamine::Data::Float(f) => {
+                                worksheet.write_number(row_idx as u32, col_idx as u16, *f)?;
+                            }
+                            calamine::Data::DateTime(dt) => {
+                                // DateTimeの場合、シリアル値として書き込み、日付フォーマットを適用
+                                let dt_str = dt.to_string();
+                                if let Ok(serial) = dt_str.parse::<f64>() {
+                                    worksheet.write_number_with_format(
+                                        row_idx as u32,
+                                        col_idx as u16,
+                                        serial,
+                                        &date_format,
+                                    )?;
+                                } else {
+                                    worksheet.write_string(
+                                        row_idx as u32,
+                                        col_idx as u16,
+                                        &dt_str,
+                                    )?;
+                                }
+                            }
+                            calamine::Data::DateTimeIso(dt_str) => {
+                                worksheet.write_string(row_idx as u32, col_idx as u16, dt_str)?;
+                            }
+                            _ => {
+                                let value = format!("{}", cell);
+                                if !value.is_empty() {
+                                    worksheet.write_string(
+                                        row_idx as u32,
+                                        col_idx as u16,
+                                        &value,
+                                    )?;
+                                }
+                            }
                         }
                     }
                 }
@@ -85,11 +127,12 @@ impl ExcelPresenter {
 
             for result in &self.results {
                 let row = (result.row_number - 1) as u32;
-                sheet.write_number(row, 4, result.raw_material_cost)?; // 原砂金額
-                sheet.write_number(row, 5, result.unit_cost)?; // 原単位
-                sheet.write_number(row, 7, result.yield_cost)?; // 原砂歩留金額
-                sheet.write_number(row, 10, result.freight_cost)?; // 運賃
-                sheet.write_number(row, 11, result.total_material_cost)?; // 材料費
+                // 四捨五入して整数に変換
+                sheet.write_number(row, 4, result.raw_material_cost.round())?; // 原砂金額
+                sheet.write_number(row, 5, result.unit_cost.round())?; // 原単位
+                sheet.write_number(row, 7, result.yield_cost.round())?; // 原砂歩留金額
+                sheet.write_number(row, 10, result.freight_cost.round())?; // 運賃
+                sheet.write_number(row, 11, result.total_material_cost.round())?; // 材料費
             }
 
             self.log("  ✓ 材料費計算結果の書き込み完了".to_string());
@@ -100,9 +143,13 @@ impl ExcelPresenter {
             self.log("\n入出庫履歴シートに書き込み中...".to_string());
             let history_sheet = workbook.worksheet_from_name("【集計】入出庫履歴")?;
 
+            // 日付フォーマットを作成
+            let date_format = rust_xlsxwriter::Format::new().set_num_format("yyyy-mm-dd");
+
             for (idx, record) in self.history_records.iter().enumerate() {
                 let row = (idx + 1) as u32;
-                history_sheet.write_string(row, 0, &record.date)?;
+                // 日付を文字列として書き込み、フォーマットを適用
+                history_sheet.write_string_with_format(row, 0, &record.date, &date_format)?;
                 history_sheet.write_string(row, 1, &record.inventory_type)?;
                 history_sheet.write_string(row, 2, &record.product_code)?;
                 history_sheet.write_string(row, 3, &record.product_name)?;
@@ -115,15 +162,12 @@ impl ExcelPresenter {
         }
 
         // syslogシートを作成してログを書き込み
-        self.log("\nsyslogシートにログを書き込み中...".to_string());
         let syslog_sheet = workbook.add_worksheet();
         syslog_sheet.set_name("syslog")?;
 
         for (idx, log_message) in self.logs.iter().enumerate() {
             syslog_sheet.write_string(idx as u32, 0, log_message)?;
         }
-
-        self.log("  ✓ ログの書き込み完了".to_string());
 
         // ファイルを保存
         self.log("\nExcelファイルを保存中...".to_string());
@@ -155,12 +199,22 @@ impl CalculateMaterialCostOutputPort for ExcelPresenter {
         self.log(format!("    配合マスタ: {} 種類の材料", consumptions.len()));
         for consumption in consumptions {
             self.log(format!(
-                "      {} ({}): {:.2} kg",
+                "      {} ({}): 消費数量 {:.2} kg",
                 consumption.material_name, consumption.material_code, consumption.quantity
             ));
             self.log(format!(
                 "        単価: {:.2} 円 → 金額: {:.2} 円",
                 consumption.unit_price, consumption.total_cost
+            ));
+            self.log(format!(
+                "        仕入数量: {:.2} kg, 運賃コード: {}, 運賃Kg単価: {:.2} 円/kg",
+                consumption.purchase_quantity,
+                consumption.freight_code_str,
+                consumption.freight_kg_price
+            ));
+            self.log(format!(
+                "        実質運賃（按分後）: {:.2} 円 (= {:.2} × {:.2})",
+                consumption.freight_cost, consumption.freight_kg_price, consumption.quantity
             ));
         }
     }
@@ -177,6 +231,7 @@ impl CalculateMaterialCostOutputPort for ExcelPresenter {
             "    粘土処理: {:.2} 円",
             result.clay_treatment_cost
         ));
+        self.log(format!("    運賃: {:.2} 円", result.freight_cost));
         self.log(format!(
             "    材料費合計: {:.2} 円",
             result.total_material_cost
